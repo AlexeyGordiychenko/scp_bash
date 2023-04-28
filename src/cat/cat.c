@@ -1,13 +1,12 @@
 #include "cat.h"
 
 int main(int argc, char *argv[]) {
-  int nflag = 0, bflag = 0, eflag = 0, vflag = 0, sflag = 0, tflag = 0;
-  set_flags_by_options(argc, argv, &nflag, &bflag, &eflag, &vflag, &sflag,
-                       &tflag);
-  print_files(argc, argv, nflag, bflag, eflag, vflag, sflag, tflag);
+  Flags flags = {0, 0, 0, 0, 0, 0};
+  // int nflag = 0, bflag = 0, eflag = 0, vflag = 0, sflag = 0, tflag = 0;
+  set_flags_by_options(argc, argv, &flags);
+  print_files(argc, argv, flags);
 }
-void set_flags_by_options(int argc, char *argv[], int *nflag, int *bflag,
-                          int *eflag, int *vflag, int *sflag, int *tflag) {
+void set_flags_by_options(int argc, char *argv[], Flags *flags) {
   static struct option long_options[] = {
       {"number-nonblank", no_argument, 0, 'b'},
       {"number", no_argument, 0, 'n'},
@@ -19,28 +18,28 @@ void set_flags_by_options(int argc, char *argv[], int *nflag, int *bflag,
                             &long_index)) != -1) {
     switch (opt) {
       case 'n':
-        *nflag = 1;
+        flags->nflag = 1;
         break;
       case 'e':
-        *eflag = *vflag = 1;  // e implies v, same as vE
+        flags->eflag = flags->vflag = 1;  // e implies v, same as vE
         break;
       case 'E':
-        *eflag = 1;
+        flags->eflag = 1;
         break;
       case 'v':
-        *vflag = 1;
+        flags->vflag = 1;
         break;
       case 'b':
-        *bflag = *nflag = 1;  // b implies n
+        flags->bflag = flags->nflag = 1;  // b implies n
         break;
       case 's':
-        *sflag = 1;
+        flags->sflag = 1;
         break;
       case 't':
-        *tflag = *vflag = 1;  // t implies v, same as vT
+        flags->tflag = flags->vflag = 1;  // t implies v, same as vT
         break;
       case 'T':
-        *tflag = 1;
+        flags->tflag = 1;
         break;
       default:
         fprintf(stderr, "Usage: %s [-nevbst] [file ...]\n", argv[0]);
@@ -49,8 +48,7 @@ void set_flags_by_options(int argc, char *argv[], int *nflag, int *bflag,
   }
 }
 
-void print_files(int argc, char *argv[], int nflag, int bflag, int eflag,
-                 int vflag, int sflag, int tflag) {
+void print_files(int argc, char *argv[], Flags flags) {
   FILE *fp;
   char *line = NULL;
   size_t len = 0;
@@ -71,10 +69,10 @@ void print_files(int argc, char *argv[], int nflag, int bflag, int eflag,
     }
 
     while ((read = getline(&line, &len, fp)) != -1) {
-      if (sflag || bflag) {
+      if (flags.sflag || flags.bflag) {
         blank_line = strcmp(line, "\n") == 0;
       }
-      if (sflag) {
+      if (flags.sflag) {
         if (blank_line && prev_blank_line && !no_new_line_at_the_EOF) {
           continue;
         }
@@ -82,11 +80,11 @@ void print_files(int argc, char *argv[], int nflag, int bflag, int eflag,
       }
 
       if (!no_new_line_at_the_EOF) {
-        if (bflag && !blank_line) {
+        if (flags.bflag && !blank_line) {
           printf("%6d\t", line_num);
           line_num++;
         }
-        if (nflag && !bflag) {
+        if (flags.nflag && !flags.bflag) {
           printf("%6d\t", line_num);
           line_num++;
         }
@@ -94,11 +92,11 @@ void print_files(int argc, char *argv[], int nflag, int bflag, int eflag,
       no_new_line_at_the_EOF = 0;
 
       for (int i = 0; i < read; i++) {
-        if (tflag && line[i] == '\t') {
+        if (flags.tflag && line[i] == '\t') {
           printf("^I");
-        } else if (eflag && line[i] == '\n') {
+        } else if (flags.eflag && line[i] == '\n') {
           printf("$\n");
-        } else if (vflag) {
+        } else if (flags.vflag) {
           output_vflag(line[i]);
         } else {
           printf("%c", line[i]);
