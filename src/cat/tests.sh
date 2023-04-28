@@ -3,7 +3,11 @@
 SUCCESS=0
 FAIL=0
 COUNTER=0
-LEAKS_CHECK=0
+if [[ $1 == "1" ]]; then
+    LEAKS_CHECK=1
+else
+    LEAKS_CHECK=0
+fi
 
 s21_command=(
     "./s21_cat"
@@ -56,9 +60,10 @@ run_test() {
     param=$(echo "$@" | sed "s/FLAGS/$var/")
     let "COUNTER++"
     if [ "$LEAKS_CHECK" == 1 ]; then
-        valgrind --log-fd=1 --leak-check=full --show-leak-kinds=all "${s21_command[@]}" $param | grep -ic -e "LEAK SUMMARY:" -e "ERROR SUMMARY: [^0]" >/dev/null
+        # echo "valgrind --leak-check=full --show-leak-kinds=all "${s21_command[@]}" $param 2> >(grep -ic -e \"LEAK SUMMARY:\" -e \"ERROR SUMMARY: [^0]\" 2>/dev/null 1>&2)"
+        valgrind --leak-check=full --show-leak-kinds=all "${s21_command[@]}" $param 2>&1 >/dev/null | grep -ic -e "LEAK SUMMARY:" -e "ERROR SUMMARY: [^0]" >/dev/null
     else
-        diff <("${s21_command[@]}" $param) <("${sys_command[@]}" $param) >/dev/null
+        cmp -s <("${s21_command[@]}" $param 2>/dev/null) <("${sys_command[@]}" $param 2>/dev/null)
     fi
 
     res=$?
@@ -72,7 +77,7 @@ run_test() {
 }
 
 echo "^^^^^^^^^^^^^^^^^^^^^^^"
-echo "TESTS WITH NORMAL FLAGS"
+echo -n "TESTS WITH NORMAL FLAGS" && [ $LEAKS_CHECK == 1 ] && echo " AND VALGRIND" || echo
 echo "^^^^^^^^^^^^^^^^^^^^^^^"
 printf "\n"
 echo "#######################"
@@ -185,7 +190,7 @@ echo "ALL: $COUNTER"
 printf "\n"
 ##############################
 echo "^^^^^^^^^^^^^^^^^^^^^^^"
-echo "TESTS WITH GNU FLAGS"
+echo -n "TESTS WITH GNU FLAGS" && [ $LEAKS_CHECK == 1 ] && echo " AND VALGRIND" || echo
 echo "^^^^^^^^^^^^^^^^^^^^^^^"
 printf "\n"
 FAIL=0
