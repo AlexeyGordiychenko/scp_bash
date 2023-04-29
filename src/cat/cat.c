@@ -1,16 +1,16 @@
 #include "cat.h"
 
 int main(int argc, char *argv[]) {
-  Flags flags = {0, 0, 0, 0, 0, 0, 0};
-  set_flags_by_options(argc, argv, &flags);
-  if (flags.hflag) {
+  Arguments arguments = {0, 0, 0, 0, 0, 0, 0};
+  parse_arguments(argc, argv, &arguments);
+  if (arguments.hflag) {
     print_help(argv[0]);
   } else {
-    print_files(argc, argv, flags);
+    return process_files(argc, argv, arguments);
   }
 }
 
-void set_flags_by_options(int argc, char *argv[], Flags *flags) {
+void parse_arguments(int argc, char *argv[], Arguments *arguments) {
   static struct option long_options[] = {
       {"number-nonblank", no_argument, 0, 'b'},
       {"number", no_argument, 0, 'n'},
@@ -23,31 +23,31 @@ void set_flags_by_options(int argc, char *argv[], Flags *flags) {
                             &long_index)) != -1) {
     switch (opt) {
       case 'n':
-        flags->nflag = 1;
+        arguments->nflag = 1;
         break;
       case 'e':
-        flags->eflag = flags->vflag = 1;  // e implies v, same as vE
+        arguments->eflag = arguments->vflag = 1;  // e implies v, same as vE
         break;
       case 'E':
-        flags->eflag = 1;
+        arguments->eflag = 1;
         break;
       case 'v':
-        flags->vflag = 1;
+        arguments->vflag = 1;
         break;
       case 'b':
-        flags->bflag = flags->nflag = 1;  // b implies n
+        arguments->bflag = arguments->nflag = 1;  // b implies n
         break;
       case 's':
-        flags->sflag = 1;
+        arguments->sflag = 1;
         break;
       case 't':
-        flags->tflag = flags->vflag = 1;  // t implies v, same as vT
+        arguments->tflag = arguments->vflag = 1;  // t implies v, same as vT
         break;
       case 'T':
-        flags->tflag = 1;
+        arguments->tflag = 1;
         break;
       case 'h':
-        flags->hflag = 1;
+        arguments->hflag = 1;
         break;
       default:
         fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
@@ -56,34 +56,33 @@ void set_flags_by_options(int argc, char *argv[], Flags *flags) {
   }
 }
 
-FILE *open_file(char *cmd, char *filename, char *line) {
+FILE *open_file(char *cmd, char *filename) {
   FILE *fp = NULL;
   fp = fopen(filename, "r");
   if (fp == NULL) {
-    fprintf(stderr, "Failed to open file: %s\n", filename);
     fprintf(stderr, "%s: %s: No such file or directory\n", cmd, filename);
-    if (line != NULL) {
-      free(line);
-    }
-    exit(EXIT_FAILURE);
   }
   return fp;
 }
 
-void print_files(int argc, char *argv[], Flags flags) {
+bool process_files(int argc, char *argv[], Arguments arguments) {
   char *line = NULL;
   size_t len = 0, line_num = 1;
   ssize_t read;
-  bool prev_blank_line = 0, blank_line = 0, no_new_line_at_the_EOF = 0;
+  bool prev_blank_line = 0, blank_line = 0, no_new_line_at_the_EOF = 0, res = 0;
 
   for (int i = optind; i < argc; i++) {
-    FILE *fp = open_file(argv[0], argv[i], line);
+    FILE *fp = open_file(argv[0], argv[i]);
+    if (fp == NULL) {
+      res = 1;
+      continue;
+    }
 
     while ((read = getline(&line, &len, fp)) != -1) {
-      if (flags.sflag || flags.bflag) {
+      if (arguments.sflag || arguments.bflag) {
         blank_line = line[0] == '\n';
       }
-      if (flags.sflag) {
+      if (arguments.sflag) {
         if (blank_line && prev_blank_line && !no_new_line_at_the_EOF) {
           continue;
         }
@@ -91,11 +90,11 @@ void print_files(int argc, char *argv[], Flags flags) {
       }
 
       if (!no_new_line_at_the_EOF) {
-        if (flags.bflag && !blank_line) {
+        if (arguments.bflag && !blank_line) {
           printf("%6ld\t", line_num);
           line_num++;
         }
-        if (flags.nflag && !flags.bflag) {
+        if (arguments.nflag && !arguments.bflag) {
           printf("%6ld\t", line_num);
           line_num++;
         }
@@ -103,11 +102,11 @@ void print_files(int argc, char *argv[], Flags flags) {
       no_new_line_at_the_EOF = 0;
 
       for (int i = 0; i < read; i++) {
-        if (flags.tflag && line[i] == '\t') {
+        if (arguments.tflag && line[i] == '\t') {
           printf("^I");
-        } else if (flags.eflag && line[i] == '\n') {
+        } else if (arguments.eflag && line[i] == '\n') {
           printf("$\n");
-        } else if (flags.vflag) {
+        } else if (arguments.vflag) {
           output_vflag(line[i]);
         } else {
           printf("%c", line[i]);
@@ -121,6 +120,7 @@ void print_files(int argc, char *argv[], Flags flags) {
     fclose(fp);
   }
   free(line);
+  return res;
 }
 
 void output_vflag(char ch) {

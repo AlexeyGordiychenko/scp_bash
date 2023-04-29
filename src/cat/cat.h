@@ -12,11 +12,11 @@ typedef struct {
   int sflag;
   int tflag;
   int hflag;
-} Flags;
+} Arguments;
 
-void set_flags_by_options(int argc, char *argv[], Flags *flags);
-void print_files(int argc, char *argv[], Flags flags);
+void parse_arguments(int argc, char *argv[], Arguments *flags);
+bool process_files(int argc, char *argv[], Arguments flags);
 void output_vflag(char ch);
 char last_character(FILE *fp);
 void print_help(char *name);
-FILE *open_file(char *cmd, char *filename, char *line);
+FILE *open_file(char *cmd, char *filename);

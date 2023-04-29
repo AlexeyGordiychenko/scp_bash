@@ -35,6 +35,7 @@ manual=(
     "-t test_files/test_3_cat.txt"
     "-n test_files/test_2_cat.txt"
     "no_file.txt"
+    "-benvst nofile.txt test_files/test_1_cat.txt"
     "-n -b test_files/test_1_cat.txt"
     "-s -n -e test_files/test_4_cat.txt"
     "test_files/test_1_cat.txt -n"
