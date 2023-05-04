@@ -115,7 +115,7 @@ void parse_re(int argc, char *argv[], Flags *flags, int *re_count,
   }
   if (res && *re_count == 0) {
     if (optind < argc) {
-      res = add_re(argv[optind], re_count, re, re_flags) == REG_NOERROR;
+      res = add_re(argv[optind], re_count, re, re_flags);
       optind++;
     }
   }
@@ -229,7 +229,7 @@ int cmp_matches(const void *a, const void *b) {
 int add_re(char *pattern, int *re_count, regex_t **re, int flags) {
   (*re_count)++;
   *re = realloc(*re, sizeof(regex_t) * *re_count);
-  return regcomp(&((*re)[*re_count - 1]), pattern, flags);
+  return regcomp(&((*re)[*re_count - 1]), pattern, flags) == 0;
 }
 
 void free_re(int re_count, regex_t **re) {
@@ -246,7 +246,7 @@ bool re_flag_handler(int fl, Flags *flags, int *re_count, regex_t **re,
   bool res = true;
 
   if (fl == 'e') {
-    res = add_re(optarg, re_count, re, re_flags) == REG_NOERROR;
+    res = add_re(optarg, re_count, re, re_flags);
   } else if (fl == 'f') {
     FILE *ffile = open_file(optarg);
     if (ffile == NULL) {
@@ -257,7 +257,7 @@ bool re_flag_handler(int fl, Flags *flags, int *re_count, regex_t **re,
       size_t len = 0;
       while (getline(&line, &len, ffile) != -1 && res) {
         line[strcspn(line, "\n")] = 0;
-        res = add_re(line, re_count, re, re_flags) == REG_NOERROR;
+        res = add_re(line, re_count, re, re_flags);
       }
       fclose(ffile);
       if (line != NULL) free(line);
