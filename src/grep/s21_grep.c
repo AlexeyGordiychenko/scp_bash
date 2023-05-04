@@ -144,13 +144,8 @@ int process_file(char *filename, Flags *flags, int re_count, regex_t *re) {
       if (!flags->err_mem && ((!flags->vflag && matches_found) ||
                               (flags->vflag && !matches_found++))) {
         matches_count++;
-        // if (flags->lflag) {
-        //   printf("%s\n", filename);
-        //   lflag_check = false;
-        // } else {
         output_line(filename, line, line_len, line_count, &lflag_check, *flags,
                     matches_found, matches);
-        // }
         if (matches != NULL) free(matches);
       }
     }
@@ -158,12 +153,6 @@ int process_file(char *filename, Flags *flags, int re_count, regex_t *re) {
     if (line != NULL) free(line);
 
     output_line_cflag(filename, matches_count, *flags);
-    // if (!flags->err_mem) {
-    //   if (flags->cflag && !flags->lflag) {
-    //     if (!flags->sfile && !flags->hflag) printf("%s:", filename);
-    //     printf("%d\n", matches_count);
-    //   }
-    // }
 
     fclose(fp);
   }
