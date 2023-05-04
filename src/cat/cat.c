@@ -1,126 +1,126 @@
 #include "cat.h"
 
 int main(int argc, char *argv[]) {
-  Arguments arguments = {0, 0, 0, 0, 0, 0, 0};
-  parse_arguments(argc, argv, &arguments);
-  if (arguments.hflag) {
-    print_help(argv[0]);
+  Flags flags = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  parse_flags(argc, argv, &flags);
+  if (!flags.err_fl) {
+    if (flags.hflag) {
+      print_help(argv[0]);
+    } else {
+      process_files(argc, argv, &flags);
+    }
   } else {
-    return process_files(argc, argv, arguments);
+    print_errors(flags, argv[0]);
   }
+  bool res = flags.err_file || flags.err_fl;
+  return res;
 }
 
-void parse_arguments(int argc, char *argv[], Arguments *arguments) {
+void parse_flags(int argc, char *argv[], Flags *flags) {
   static struct option long_options[] = {
       {"number-nonblank", no_argument, 0, 'b'},
       {"number", no_argument, 0, 'n'},
       {"squeeze-blank", no_argument, 0, 's'},
-      {"help", no_argument, 0, 'h'},
+      {"help", no_argument, 0, 0},
       {0, 0, 0, 0}};
 
   int opt, long_index = 0;
-  while ((opt = getopt_long(argc, argv, "benstvTEh", long_options,
+  while ((opt = getopt_long(argc, argv, "benstvTE", long_options,
                             &long_index)) != -1) {
     switch (opt) {
       case 'n':
-        arguments->nflag = 1;
+        flags->nflag = 1;
         break;
       case 'e':
-        arguments->eflag = arguments->vflag = 1;  // e implies v, same as vE
+        flags->eflag = flags->vflag = 1;  // e implies v, same as vE
         break;
       case 'E':
-        arguments->eflag = 1;
+        flags->eflag = 1;
         break;
       case 'v':
-        arguments->vflag = 1;
+        flags->vflag = 1;
         break;
       case 'b':
-        arguments->bflag = arguments->nflag = 1;  // b implies n
+        flags->bflag = flags->nflag = 1;  // b implies n
         break;
       case 's':
-        arguments->sflag = 1;
+        flags->sflag = 1;
         break;
       case 't':
-        arguments->tflag = arguments->vflag = 1;  // t implies v, same as vT
+        flags->tflag = flags->vflag = 1;  // t implies v, same as vT
         break;
       case 'T':
-        arguments->tflag = 1;
+        flags->tflag = 1;
         break;
-      case 'h':
-        arguments->hflag = 1;
+      case 0:
+        flags->hflag = 1;
         break;
       default:
-        fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
-        exit(EXIT_FAILURE);
+        flags->err_fl = true;
     }
   }
 }
 
-FILE *open_file(char *cmd, char *filename) {
+FILE *open_file(char *filename) {
   FILE *fp = NULL;
   fp = fopen(filename, "r");
-  if (fp == NULL) {
-    fprintf(stderr, "%s: %s: No such file or directory\n", cmd, filename);
-  }
   return fp;
 }
 
-bool process_files(int argc, char *argv[], Arguments arguments) {
+void process_files(int argc, char *argv[], Flags *flags) {
   char *line = NULL;
   size_t len = 0, line_num = 1;
   ssize_t read;
-  bool prev_blank_line = 0, blank_line = 0, no_new_line_at_the_EOF = 0, res = 0;
+  bool prev_blank_line = false, no_new_line_at_the_EOF = false;
 
   for (int i = optind; i < argc; i++) {
-    FILE *fp = open_file(argv[0], argv[i]);
+    FILE *fp = open_file(argv[i]);
     if (fp == NULL) {
-      res = 1;
-      continue;
+      flags->err_file = true;
+      print_errors(*flags, argv[i]);
+    } else {
+      while ((read = getline(&line, &len, fp)) != -1) {
+        output_line(line, read, &line_num, *flags, &prev_blank_line,
+                    &no_new_line_at_the_EOF);
+      }
+
+      /* reading last char of the file coz valgrind doesn't
+      like if I try to get it from the 'line' */
+      no_new_line_at_the_EOF = last_character(fp) != '\n';
+      fclose(fp);
     }
-
-    while ((read = getline(&line, &len, fp)) != -1) {
-      if (arguments.sflag || arguments.bflag) {
-        blank_line = line[0] == '\n';
-      }
-      if (arguments.sflag) {
-        if (blank_line && prev_blank_line && !no_new_line_at_the_EOF) {
-          continue;
-        }
-        prev_blank_line = blank_line && !no_new_line_at_the_EOF;
-      }
-
-      if (!no_new_line_at_the_EOF) {
-        if (arguments.bflag && !blank_line) {
-          printf("%6ld\t", line_num);
-          line_num++;
-        }
-        if (arguments.nflag && !arguments.bflag) {
-          printf("%6ld\t", line_num);
-          line_num++;
-        }
-      }
-      no_new_line_at_the_EOF = 0;
-
-      for (int i = 0; i < read; i++) {
-        if (arguments.tflag && line[i] == '\t') {
-          printf("^I");
-        } else if (arguments.eflag && line[i] == '\n') {
-          printf("$\n");
-        } else if (arguments.vflag) {
-          output_vflag(line[i]);
-        } else {
-          printf("%c", line[i]);
-        }
-      }
-    }
-
-    /* reading last char of the file coz valgrind doesn't
-    like if I try to get it from the 'line' */
-    no_new_line_at_the_EOF = last_character(fp) != '\n';
-    fclose(fp);
   }
   free(line);
-  return res;
+}
+
+void output_line(char *line, ssize_t read, size_t *line_num, Flags flags,
+                 bool *prev_blank_line, bool *no_new_line_at_the_EOF) {
+  bool blank_line = line[0] == '\n';
+  if (flags.sflag) {
+    if (blank_line && *prev_blank_line && !*no_new_line_at_the_EOF) {
+      return;
+    }
+    *prev_blank_line = blank_line && !*no_new_line_at_the_EOF;
+  }
+
+  if (!*no_new_line_at_the_EOF) {
+    if ((flags.bflag && !blank_line) || (flags.nflag && !flags.bflag)) {
+      printf("%6ld\t", (*line_num)++);
+    }
+  }
+  *no_new_line_at_the_EOF = 0;
+
+  for (int i = 0; i < read; i++) {
+    if (flags.tflag && line[i] == '\t') {
+      printf("^I");
+    } else if (flags.eflag && line[i] == '\n') {
+      printf("$\n");
+    } else if (flags.vflag) {
+      output_vflag(line[i]);
+    } else {
+      printf("%c", line[i]);
+    }
+  }
 }
 
 void output_vflag(char ch) {
@@ -142,6 +142,15 @@ char last_character(FILE *fp) {
   char ch;
   fread(&ch, 1, 1, fp);
   return ch;
+}
+
+void print_errors(Flags flags, char *arg) {
+  if (flags.err_file) {
+    fprintf(stderr, "%s: No such file or directory\n", arg);
+  }
+  if (flags.err_fl) {
+    fprintf(stderr, "Try '%s --help' for more information.\n", arg);
+  }
 }
 
 void print_help(char *name) {
