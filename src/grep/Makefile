@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -Werror -Wextra -fmax-errors=1 -g
+CFLAGS=-Wall -Werror -Wextra
 
 all: s21_grep
 
