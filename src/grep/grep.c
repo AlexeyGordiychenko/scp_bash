@@ -1,168 +1,373 @@
 #include "grep.h"
 
 int main(int argc, char *argv[]) {
-  Arguments arguments = {0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, NULL, 0};
+  Flags flags = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  regex_t *re = NULL;
+  int re_count = 0;
 
-  // Parse command-line arguments
-  parse_arguments(argc, argv, &arguments);
-  return process_files(argc, argv, arguments);
-}
+  // exit code 0 - found, 1 - not found, 2 - error
+  int exit_code = 1;
 
-regex_t compile_regex(char *pattern, bool ignore_case) {
-  regex_t regex;
-  int reti = regcomp(&regex, pattern, ignore_case ? REG_ICASE : 0);
-  if (reti != 0) {
-    char error_message[MAX_LINE_LENGTH];
-    regerror(reti, &regex, error_message, MAX_LINE_LENGTH);
-    fprintf(stderr, "Failed to compile regex: %s\n", error_message);
-    exit(EXIT_FAILURE);
+  // Parse command-line args
+  parse_args(argc, argv, &flags, &re_count, &re);
+  if (no_errors(flags)) {
+    int not_found = 1;
+    for (int i = optind; i < argc && !flags.err_mem; i++) {
+      not_found = process_file(argv[i], &flags, re_count, re) && not_found;
+      if (flags.err_mem || flags.err_file) {
+        print_errors(flags, argv[i]);
+        exit_code = 2;
+      }
+    }
+    exit_code = (exit_code == 2) ? exit_code : not_found;
+  } else {
+    print_errors(flags, argv[0]);
+    exit_code = 2;
   }
-  return regex;
+
+  free_re(re_count, &re);
+
+  return exit_code;
 }
 
-void parse_arguments(int argc, char *argv[], Arguments *arguments) {
-  int opt;
-  while ((opt = getopt(argc, argv, "e:ivclnhsf:o")) != -1) {
+void parse_args(int argc, char *argv[], Flags *flags, int *re_count,
+                regex_t **re) {
+  /*
+  first iteration just to get flags
+  second to process patterns
+  */
+  parse_flags(argc, argv, flags);
+  if (!flags->err_fl) {
+    if (flags->helpflag) {
+      print_help(argv[0]);
+    } else {
+      parse_re(argc, argv, flags, re_count, re);
+      flags->sfile = (optind == argc - 1);
+    }
+  }
+}
+
+void parse_flags(int argc, char *argv[], Flags *flags) {
+  static struct option long_options[] = {{"help", no_argument, 0, 0},
+                                         {0, 0, 0, 0}};
+
+  int opt, long_index = 0;
+  while ((opt = getopt_long(argc, argv, "e:ivclnhsf:o", long_options,
+                            &long_index)) != -1) {
     switch (opt) {
       case 'e':
-        arguments->eflag = 1;
-        arguments->pattern = optarg;
+      case 'f':
         break;
       case 'i':
-        arguments->iflag = 1;
+        flags->iflag = 1;
         break;
       case 'v':
-        arguments->vflag = 1;
+        flags->vflag = 1;
         break;
       case 'c':
-        arguments->cflag = 1;
+        flags->cflag = 1;
         break;
       case 'l':
-        arguments->lflag = 1;
+        flags->lflag = 1;
         break;
       case 'n':
-        arguments->nflag = 1;
+        flags->nflag = 1;
         break;
       case 'h':
-        arguments->hflag = 1;
+        flags->hflag = 1;
         break;
       case 's':
-        arguments->sflag = 1;
-        break;
-      case 'f':
-        arguments->fflag = 1;
-        arguments->regex_file = optarg;
+        flags->sflag = 1;
         break;
       case 'o':
-        arguments->oflag = 1;
+        flags->oflag = 1;
+        break;
+      case 0:
+        flags->helpflag = 1;
         break;
       default:
-        fprintf(stderr,
-                "Usage: %s [-e pattern] [-i] [-v] [-c] [-l] [-n] [-h] [-s] "
-                "[-w] [-f file] [-o]\n",
-                argv[0]);
-        exit(EXIT_FAILURE);
+        flags->err_fl = true;
+        break;
     }
   }
+}
 
-  // Check for the presence of the pattern and filename
-  if (arguments->pattern == NULL && optind < argc) {
-    arguments->pattern = argv[optind];
-    optind++;
+void parse_re(int argc, char *argv[], Flags *flags, int *re_count,
+              regex_t **re) {
+  bool res = true;
+  // flags for regcomp
+  int re_flags = REG_NEWLINE;
+  if (flags->iflag) re_flags |= REG_ICASE;
+
+  // reset the variables after the first loop
+  optind = 1;
+  opterr = 0;
+  int opt;
+  while ((opt = getopt(argc, argv, "e:f:")) != -1 && res) {
+    switch (opt) {
+      case 'e':
+      case 'f':
+        res = re_flag_handler(opt, flags, re_count, re, re_flags);
+        break;
+      default:
+        break;
+    }
+  }
+  if (res && *re_count == 0) {
+    if (optind < argc) {
+      res = add_re(argv[optind], re_count, re, re_flags) == REG_NOERROR;
+      optind++;
+    }
+  }
+  flags->err_re_comp = !res && !flags->err_file;
+  if (res && *re_count == 0) res = false;
+  flags->err_re = !res && !flags->err_file && !flags->err_re_comp;
+}
+
+int process_file(char *filename, Flags *flags, int re_count, regex_t *re) {
+  int matches_count = 0;
+  flags->err_file = false;
+  FILE *fp = open_file(filename);
+  if (fp == NULL) {
+    flags->err_file = true;
   } else {
-    fprintf(stderr, "Pattern not specified.\n");
-    exit(EXIT_FAILURE);
-  }
-}
-
-FILE *open_file(char *cmd, char *filename, bool quiet) {
-  FILE *fp = NULL;
-  fp = fopen(filename, "r");
-  if (fp == NULL && !quiet) {
-    fprintf(stderr, "%s: %s: No such file or directory\n", cmd, filename);
-    // if (line != NULL) {
-    //   free(line);
-    // }
-    // exit(EXIT_FAILURE);
-  }
-  return fp;
-}
-
-int process_files(int argc, char *argv[], Arguments arguments) {
-  regex_t regex = compile_regex(arguments.pattern, arguments.iflag);
-
-  char *line = NULL;
-  size_t len = 0, match_found = 0, num_matches = 0;
-  int res = 0;
-  ssize_t read;
-
-  for (int i = optind; i < argc; i++) {
-    FILE *fp = open_file(argv[0], argv[i], arguments.sflag);
-    if (fp == NULL) {
-      res = 2;
-      continue;
+    int line_count = 0;
+    bool lflag_check = true;
+    char *line = NULL;
+    size_t len = 0;
+    ssize_t line_len;
+    while ((line_len = getline(&line, &len, fp)) != -1 && !flags->err_mem &&
+           lflag_check) {
+      line_count++;
+      regmatch_t *matches = NULL;
+      int matches_found = find_matches(line, flags, re_count, re, &matches);
+      if (!flags->err_mem && ((!flags->vflag && matches_found) ||
+                              (flags->vflag && !matches_found++))) {
+        matches_count++;
+        // if (flags->lflag) {
+        //   printf("%s\n", filename);
+        //   lflag_check = false;
+        // } else {
+        output_line(filename, line, line_len, line_count, &lflag_check, *flags,
+                    matches_found, matches);
+        // }
+        if (matches != NULL) free(matches);
+      }
     }
-    size_t line_num = 0;
-    while ((read = getline(&line, &len, fp)) != -1) {
-      line_num++;
-      int reti = regexec(&regex, line, 0, NULL, 0);
-      // if (reti == 0) {
-      //   match_found = 1;
-      // } else if (reti == REG_NOMATCH) {
-      //   match_found = 0;
-      // } else {
-      //   char error_message[MAX_LINE_LENGTH];
-      //   regerror(reti, &regex, error_message, MAX_LINE_LENGTH);
-      //   fprintf(stderr, "Failed to match regex: %s\n", error_message);
-      //   exit(EXIT_FAILURE);
-      // }
-      match_found = (reti == 0) ? 1 : 0;
-      // if (arguments.vflag) {
-      //   match_found = !match_found;
-      // }
 
-      // if (match_found) {
-      if ((!arguments.vflag && match_found) ||
-          (arguments.vflag && !match_found)) {
-        num_matches++;
+    if (line != NULL) free(line);
 
-        if (!arguments.cflag) {
-          if (arguments.lflag) {
-            printf("%s\n", argv[i]);
-            break;
+    output_line_cflag(filename, matches_count, *flags);
+    // if (!flags->err_mem) {
+    //   if (flags->cflag && !flags->lflag) {
+    //     if (!flags->sfile && !flags->hflag) printf("%s:", filename);
+    //     printf("%d\n", matches_count);
+    //   }
+    // }
+
+    fclose(fp);
+  }
+  return matches_count <= 0;
+}
+
+int find_matches(char *line, Flags *flags, int re_count, regex_t *re,
+                 regmatch_t **matches) {
+  int matches_count = 0;
+  if (flags->oflag && !flags->cflag && !flags->vflag && !flags->lflag) {
+    find_matches_oflag(line, re_count, re, &matches_count, matches);
+  } else {
+    for (int i = 0; i < re_count && !matches_count; i++) {
+      if (regexec(&re[i], line, 0, NULL, 0) == 0) matches_count++;
+    }
+  }
+  if (matches_count == -1) flags->err_mem = true;
+  return matches_count;
+}
+
+void find_matches_oflag(char *line, int re_count, regex_t *re,
+                        int *matches_count, regmatch_t **matches) {
+  int matches_size = 0;
+  for (int i = 0; i < re_count && *matches_count >= 0; i++) {
+    // Search for all matches within the line
+    char *buf = line;
+    regmatch_t match;
+    int offset = 0;
+    while (regexec(&re[i], buf, 1, &match, 0) == 0 && *matches_count >= 0) {
+      // Merge overlapping matches
+      bool merged = false;
+      match.rm_so += offset;
+      match.rm_eo += offset;
+      for (int k = 0; k < (*matches_count) && !merged; k++) {
+        if (match.rm_so < (*matches)[k].rm_eo &&
+            match.rm_eo > (*matches)[k].rm_so) {
+          (*matches)[k].rm_so = (match.rm_so < (*matches)[k].rm_so)
+                                    ? match.rm_so
+                                    : (*matches)[k].rm_so;
+          (*matches)[k].rm_eo = (match.rm_eo > (*matches)[k].rm_eo)
+                                    ? match.rm_eo
+                                    : (*matches)[k].rm_eo;
+          merged = true;
+        }
+      }
+      if (!merged) {
+        if (*matches_count < matches_size) {
+          (*matches)[(*matches_count)++] = match;
+        } else {
+          // Handle case where there are more matches than matches_size
+          matches_size = (matches_size == 0) ? 3 : matches_size * 2;
+          *matches = realloc(*matches, sizeof(regmatch_t) * matches_size);
+          if (*matches == NULL) {
+            *matches_count = -1;
           } else {
-            if (!arguments.hflag && optind != argc - 1) {
-              printf("%s:", argv[i]);
-            }
-            if (arguments.nflag) {
-              printf("%ld:", line_num);
-            }
-            printf("%s", line);
-            if (line[read - 1] != '\n') {
-              printf("\n");
-            }
+            (*matches)[(*matches_count)++] = match;
           }
         }
       }
+
+      // Advance buffer to next match
+      buf += match.rm_eo - offset;
+      offset = match.rm_eo;
     }
-    fclose(fp);
   }
-  free(line);
-  regfree(&regex);
+  if (*matches_count > 0)
+    qsort(*matches, *matches_count, sizeof(regmatch_t), cmp_matches);
+}
 
-  if (arguments.cflag) {
-    printf("%ld\n", num_matches);
+int cmp_matches(const void *a, const void *b) {
+  return ((*(regmatch_t *)a).rm_so - (*(regmatch_t *)b).rm_so);
+}
+
+int add_re(char *pattern, int *re_count, regex_t **re, int flags) {
+  (*re_count)++;
+  *re = realloc(*re, sizeof(regex_t) * *re_count);
+  return regcomp(&((*re)[*re_count - 1]), pattern, flags);
+}
+
+void free_re(int re_count, regex_t **re) {
+  if (re != NULL) {
+    for (int i = 0; i < re_count; i++) {
+      regfree(&((*re)[i]));
+    }
+    free(*re);
   }
+}
 
-  if (res != 2) {
-    res = num_matches == 0;
+bool re_flag_handler(int fl, Flags *flags, int *re_count, regex_t **re,
+                     int re_flags) {
+  bool res = true;
+
+  if (fl == 'e') {
+    res = add_re(optarg, re_count, re, re_flags) == REG_NOERROR;
+  } else if (fl == 'f') {
+    FILE *ffile = open_file(optarg);
+    if (ffile == NULL) {
+      flags->err_file = true;
+      res = false;
+    } else {
+      char *line = NULL;
+      size_t len = 0;
+      while (getline(&line, &len, ffile) != -1 && res) {
+        line[strcspn(line, "\n")] = 0;
+        res = add_re(line, re_count, re, re_flags) == REG_NOERROR;
+      }
+      fclose(ffile);
+      if (line != NULL) free(line);
+    }
   }
   return res;
 }
 
-char last_character(FILE *fp) {
-  fseek(fp, -1, SEEK_END);
-  char ch;
-  fread(&ch, 1, 1, fp);
-  return ch;
+FILE *open_file(char *filename) {
+  FILE *fp = NULL;
+  fp = fopen(filename, "r");
+  return fp;
+}
+
+bool no_errors(Flags flags) {
+  return !(flags.err_fl || flags.err_re || flags.err_re_comp || flags.err_mem ||
+           flags.err_file);
+}
+
+void print_errors(Flags flags, char *arg) {
+  if (!flags.sflag) {
+    if (flags.err_mem) {
+      fprintf(stderr, "Error: out of memory.\n");
+    }
+    if (flags.err_re_comp) {
+      fprintf(stderr, "Failed to compile pattern.\n");
+    }
+    if (flags.err_file) {
+      fprintf(stderr, "%s: No such file or directory\n", arg);
+    }
+  }
+  if (flags.err_fl || flags.err_re) {
+    fprintf(stderr,
+            "Usage: grep [OPTION]... PATTERNS [FILE]...\n"
+            "Try '%s --help' for more information.\n",
+            arg);
+  }
+}
+
+void output_line(char *filename, char *line, int line_len, int line_count,
+                 bool *lflag_check, Flags flags, int matches_found,
+                 regmatch_t *matches) {
+  if (flags.lflag) {
+    printf("%s\n", filename);
+    *lflag_check = false;
+  } else {
+    if (!flags.cflag) {
+      if ((flags.oflag && !flags.vflag) || !flags.oflag) {
+        for (int i = 0; i < matches_found; i++) {
+          if (!flags.hflag && !flags.sfile) printf("%s:", filename);
+          if (flags.nflag) printf("%d:", line_count);
+          if (flags.oflag) {
+            fwrite(line + matches[i].rm_so, 1,
+                   matches[i].rm_eo - matches[i].rm_so, stdout);
+            printf("\n");
+          } else {
+            printf("%s", line);
+            if (line[line_len - 1] != '\n') printf("\n");
+          }
+        }
+      }
+    }
+  }
+}
+
+void output_line_cflag(char *filename, int matches_count, Flags flags) {
+  if (!flags.err_mem) {
+    if (flags.cflag && !flags.lflag) {
+      if (!flags.sfile && !flags.hflag) printf("%s:", filename);
+      printf("%d\n", matches_count);
+    }
+  }
+}
+
+void print_help(char *name) {
+  printf(
+      "Usage: %s [OPTION]... PATTERNS [FILE]...\n"
+      "Search for PATTERNS in each FILE.\n"
+      "Example: grep -i 'hello world' menu.h main.c\n"
+      "PATTERNS can contain multiple patterns separated by newlines.\n"
+      "\n"
+      "Pattern selection and interpretation:\n"
+      "  -e,               use PATTERNS for matching\n"
+      "  -f,               take PATTERNS from FILE\n"
+      "  -i,               ignore case distinctions in patterns and "
+      "\n"
+      "Miscellaneous:\n"
+      "  -s,               suppress error messages\n"
+      "  -v,               select non-matching lines\n"
+      "\n"
+      "Output control:\n"
+      "  -n,               print line number with output lines\n"
+      "  -h,               suppress the file name prefix on output\n"
+      "  -o,               show only nonempty parts of lines that "
+      "match\n"
+      "  -l,               print only names of FILEs with selected "
+      "lines\n"
+      "  -c,               print only a count of selected lines per "
+      "FILE\n"
+      "      --help        display this help and exit\n",
+      name);
 }
