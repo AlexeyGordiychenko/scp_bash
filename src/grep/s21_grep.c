@@ -1,4 +1,4 @@
-#include "grep.h"
+#include "s21_grep.h"
 
 int main(int argc, char *argv[]) {
   Flags flags = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};

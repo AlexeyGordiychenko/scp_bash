@@ -3,8 +3,8 @@ CFLAGS=-Wall -Werror -Wextra
 
 all: s21_grep
 
-s21_grep: grep.c grep.h
-	$(CC) $(CFLAGS) grep.c grep.h -o s21_grep
+s21_grep: s21_grep.c s21_grep.h
+	$(CC) $(CFLAGS) s21_grep.c s21_grep.h -o s21_grep
 
 clean:
 	rm s21_grep || true
