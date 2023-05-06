@@ -127,7 +127,7 @@ void parse_re(int argc, char *argv[], Flags *flags, int *re_count,
 int process_file(char *filename, Flags *flags, int re_count, regex_t *re) {
   int matches_count = 0;
   flags->err_file = false;
-  FILE *fp = open_file(filename);
+  FILE *fp = fopen(filename, "r");
   if (fp == NULL) {
     flags->err_file = true;
   } else {
@@ -248,7 +248,7 @@ bool re_flag_handler(int fl, Flags *flags, int *re_count, regex_t **re,
   if (fl == 'e') {
     res = add_re(optarg, re_count, re, re_flags);
   } else if (fl == 'f') {
-    FILE *ffile = open_file(optarg);
+    FILE *ffile = fopen(optarg, "r");
     if (ffile == NULL) {
       flags->err_file = true;
       res = false;
@@ -264,12 +264,6 @@ bool re_flag_handler(int fl, Flags *flags, int *re_count, regex_t **re,
     }
   }
   return res;
-}
-
-FILE *open_file(char *filename) {
-  FILE *fp = NULL;
-  fp = fopen(filename, "r");
-  return fp;
 }
 
 bool no_errors(Flags flags) {

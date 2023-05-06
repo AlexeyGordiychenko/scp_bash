@@ -61,12 +61,6 @@ void parse_flags(int argc, char *argv[], Flags *flags) {
   }
 }
 
-FILE *open_file(char *filename) {
-  FILE *fp = NULL;
-  fp = fopen(filename, "r");
-  return fp;
-}
-
 void process_files(int argc, char *argv[], Flags *flags) {
   char *line = NULL;
   size_t len = 0, line_num = 1;
@@ -74,7 +68,7 @@ void process_files(int argc, char *argv[], Flags *flags) {
   bool prev_blank_line = false, no_new_line_at_the_EOF = false;
 
   for (int i = optind; i < argc; i++) {
-    FILE *fp = open_file(argv[i]);
+    FILE *fp = fopen(argv[i], "r");
     if (fp == NULL) {
       flags->err_file = true;
       print_errors(*flags, argv[i]);
