@@ -21,6 +21,5 @@ void output_line(char *line, ssize_t read, size_t *line_num, Flags flags,
                  bool *prev_blank_line, bool *no_new_line_at_the_EOF);
 void output_vflag(char ch);
 char last_character(FILE *fp);
-void print_help(char *name);
-FILE *open_file(char *filename);
 void print_errors(Flags flags, char *arg);
+void print_help(char *name);
