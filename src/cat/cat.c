@@ -1,4 +1,4 @@
-#include "s21_cat.h"
+#include "cat.h"
 
 int main(int argc, char *argv[]) {
   Flags flags = {0, 0, 0, 0, 0, 0, 0, 0, 0};

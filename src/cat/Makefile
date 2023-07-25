@@ -1,12 +1,12 @@
 CC=gcc
 CFLAGS=-Wall -Werror -Wextra
 
-all: s21_cat
+all: cat
 
-s21_cat: s21_cat.c s21_cat.h
-	$(CC) $(CFLAGS) s21_cat.c s21_cat.h -o s21_cat
+cat: cat.c cat.h
+	$(CC) $(CFLAGS) cat.c cat.h -o cat
 
 clean:
-	rm s21_cat || true
+	rm cat || true
 
 rebuild: clean all

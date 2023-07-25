@@ -5,26 +5,7 @@ The final score is 150% (max)
 
 ## Task
 
-Development of Bash text utilities: [cat](src/cat/s21_cat.c), [grep](src/grep/s21_grep.c) and tests for it.
-
-## Chapter I
-
-## Introduction
-
-In this project you will learn and develop basic Bash utilities for working with C programming language texts. These utilities (cat and grep) are often used in the Linux terminal. As part of the project you’ll learn the organization of the Bash utilities and solidify knowledge of structured programming.
-
-
-## Chapter II
-
-## Information
-
-### cat History
-
-> cat was part of the early versions of Unix, e.g., Version 1, and replaced pr, a PDP-7 and Multics utility for copying a single file to the screen.
-
-### cat Usage
-
-Cat is one of the most frequently used commands on Unix-like operating systems. It has three related functions with regard to text files: displaying them, combining copies of them and creating new ones.
+Development of Bash text utilities: [cat](src/cat/cat.c), [grep](src/grep/grep.c) and tests for it.
 
 `cat [OPTION] [FILE]...`
 
@@ -37,12 +18,6 @@ Cat is one of the most frequently used commands on Unix-like operating systems. 
 | 3   | -n (GNU: --number)                                             | number all output lines                      |
 | 4   | -s (GNU: --squeeze-blank)                                      | squeeze multiple adjacent blank lines        |
 | 5   | -t implies -v (GNU: -T the same, but without implying -v)      | but also display tabs as ^I                  |
-
-### grep History
-
-> Thompson wrote the first version in PDP-11 assembly language to help Lee E. McMahon analyze the text of the Federalist Papers to determine authorship of the individual papers. The ed text editor (also authored by Thompson) had regular expression support but could not be used on such a large amount of text, so Thompson excerpted that code into a standalone tool. He chose the name because in ed, the command g/re/p would print all lines matching a specified pattern. grep was first included in Version 4 Unix. Stating that it is "generally cited as the prototypical software tool", McIlroy credited grep with "irrevocably ingraining" Thompson's tools philosophy in Unix.
-
-### grep Usage
 
 `grep [options] template [file_name]`
 
@@ -60,53 +35,4 @@ Cat is one of the most frequently used commands on Unix-like operating systems. 
 | 8   | -s      | Suppress error messages about nonexistent or unreadable files. |
 | 9   | -f file | Take regexes from a file.                                      |
 | 10  | -o      | Output the matched parts of a matching line.                   |
-
-
-## Chapter III
-
-- The programs must be developed in C language of C11 standard using gcc compiler.
-- The program code of the cat and grep must be located on the develop branch in the src/cat/ and src/grep/ folders, respectively  
-- Do not use outdated and legacy language constructions and library functions. Pay attention to the legacy and obsolete marks in the official documentation on the language and the libraries used. Use the POSIX.1-2017 standard.
-- When writing code it is necessary to follow the Google style
-- The programs must be executable files with command line arguments
-- The programs must be built with Makefile with appropriate targets: s21_cat, s21_grep
-- If third-party libraries are used, there must be build scripts in makefile to connect/load them
-- Integration tests must cover all flag variants and input values, based on a comparison with the behavior of real Bash utilities 
-- The programs must be developed according to the principles of structured programming
-- Code duplication must be avoided, common modules must be reused between the utilities. Common modules can be moved to a separate folder src/common
-- You can use standard and non-standard C libraries, or you can use your own developed libraries from other projects
-- The statement of the message in the case of an error does not matter
-- Input via stdin is not required to be supported
-
-## Part 1. Working with the cat utility
-
-You need to develop a cat utility:
-- Support of all flags (including GNU versions) specified [above](#cat-options)
-- The source, header, and build files must be placed in the src/cat/ directory
-- The resulting executable file must be placed in the directory src/cat/ and named s21_cat
-
-## Part 2. Working with grep utility
-
-You need to develop the grep utility:
-- Support of the following flags: `-e`, `-i`, `-v`, `-c`, `-l`, `-n`
-- Only pcre or regex libraries can be used for regular expressions
-- The source, header and make files must be placed in the src/grep/ directory
-- The resulting executable file must be placed in the directory src/grep/ and named s21_grep
-
-## Part 3. Bonus. Implementation of some grep utility flags
-
-Bonus assignment for extra points. You need to develop the grep utility:
-- Support of all flags, including: `-h`, `-s`, `-f`, `-o`
-- Only pcre or regex libraries can be used for regular expressions
-- The source, header and make files must be placed in the src/grep/ directory
-- The resulting executable file must be placed in the directory src/grep/ and named s21_grep
-
-## Part 4. Bonus. Implementation of grep utility flag combinations
-
-Bonus assignment for extra points. You need to develop the grep utility:
-- Support of all flags, including their _pair_ combinations (e.g. `-iv`, `-in`)
-- Only pcre or regex libraries can be used for regular expressions
-- The source, header and make files must be placed in the src/grep/ directory
-- The resulting executable file must be placed in the directory src/grep/ and named s21_grep
-
 
